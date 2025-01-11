@@ -2,9 +2,8 @@ package net.fsmdev.lavafurnaces.mixin;
 
 import net.fsmdev.lavafurnaces.FurnaceInterface;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.MagmaBlock;
 import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
-import net.minecraft.datafixer.fix.ChunkPalettedStorageFix;
-import net.minecraft.fluid.Fluid;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.fluid.LavaFluid;
 import net.minecraft.item.ItemStack;
@@ -56,8 +55,8 @@ public abstract class FurnaceMixin implements FurnaceInterface {
 
     @Inject(method="tick", at=@At("HEAD"))
     private static void tick(World world, BlockPos pos, BlockState state, AbstractFurnaceBlockEntity blockEntity, CallbackInfo ci) {
-        Boolean fluidBelow = isFluidBelow(world,pos);
-        Boolean fluidBehind = isFluidBehind(world,pos,state);
+        Boolean fluidBelow = isLavaBelow(world,pos);
+        Boolean fluidBehind = isLavaBehind(world,pos,state);
         if (fluidBelow || fluidBehind) {
             FurnaceInterface thisFurnace = ((FurnaceInterface)blockEntity);
              if (thisFurnace.getBurnTime() <= 0) {
@@ -72,13 +71,12 @@ public abstract class FurnaceMixin implements FurnaceInterface {
         }
     }
 
-    private static Boolean isFluidBelow(World world, BlockPos pos){
+    private static Boolean isLavaBelow(World world, BlockPos pos){
         BlockPos blockBelowPos = pos.add(new Vec3i(0, -1, 0));
-        FluidState fluidState = world.getFluidState(blockBelowPos);
-        return fluidState.getFluid() instanceof LavaFluid && fluidState.isStill();
+        return isLavaAt(blockBelowPos,world);
     }
 
-    private static Boolean isFluidBehind(World world, BlockPos pos,BlockState state){
+    private static Boolean isLavaBehind(World world, BlockPos pos, BlockState state){
         Direction direction = state.get(Properties.FACING);
         return switch (direction){
             case NORTH -> isLavaAt(pos.add(new Vec3i(0, 0, 1)),world);
@@ -89,8 +87,28 @@ public abstract class FurnaceMixin implements FurnaceInterface {
         };
     }
 
+    private static Boolean isMagmaBelow(World world,BlockPos pos){
+        BlockPos blockBelowPos = pos.add(new Vec3i(0, -1, 0));
+        return isMagmaAt(blockBelowPos,world);
+    }
+
+    private static Boolean isMagmaBehind(World world,BlockPos pos,BlockState state){
+        Direction direction = state.get(Properties.FACING);
+        return switch (direction){
+            case NORTH -> isMagmaAt(pos.add(new Vec3i(0, 0, 1)),world);
+            case EAST -> isMagmaAt(pos.add(new Vec3i(-1, 0, 0)),world);
+            case WEST -> isMagmaAt(pos.add(new Vec3i(1, 0, 0)),world);
+            case SOUTH -> isMagmaAt(pos.add(new Vec3i(0, 0, -1)),world);
+            default -> false;
+        };
+    }
     private static Boolean isLavaAt(BlockPos pos,World world){
         FluidState fluidState = world.getFluidState(pos);
         return fluidState.getFluid() instanceof LavaFluid && fluidState.isStill();
+    }
+
+    private static Boolean isMagmaAt(BlockPos pos,World world){
+        BlockState blockState = world.getBlockState(pos);
+        return blockState.getBlock() instanceof MagmaBlock;
     }
 }
