@@ -27,6 +27,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.logging.Logger;
+
 @Mixin (AbstractFurnaceBlockEntity.class)
 public abstract class FurnaceMixin implements FurnaceInterface {
 
@@ -57,7 +59,11 @@ public abstract class FurnaceMixin implements FurnaceInterface {
     private static void tick(World world, BlockPos pos, BlockState state, AbstractFurnaceBlockEntity blockEntity, CallbackInfo ci) {
         Boolean fluidBelow = isLavaBelow(world,pos);
         Boolean fluidBehind = isLavaBehind(world,pos,state);
-        if (fluidBelow || fluidBehind) {
+        Boolean fluidNextTo = isLavaNextTo(world,pos,state);
+        Boolean magmaBelow = isMagmaBelow(world,pos);
+        Boolean magmaBehind = isMagmaBehind(world, pos, state);
+        Boolean magmaNextTo = isMagmaNextTo(world,pos,state);
+        if (fluidBelow || fluidBehind || fluidNextTo || magmaBelow || magmaBehind || magmaNextTo) {
             FurnaceInterface thisFurnace = ((FurnaceInterface)blockEntity);
              if (thisFurnace.getBurnTime() <= 0) {
                  DefaultedList<ItemStack> furnaceInventory = thisFurnace.getInventory();
@@ -77,14 +83,34 @@ public abstract class FurnaceMixin implements FurnaceInterface {
     }
 
     private static Boolean isLavaBehind(World world, BlockPos pos, BlockState state){
-        Direction direction = state.get(Properties.FACING);
-        return switch (direction){
-            case NORTH -> isLavaAt(pos.add(new Vec3i(0, 0, 1)),world);
-            case EAST -> isLavaAt(pos.add(new Vec3i(-1, 0, 0)),world);
-            case WEST -> isLavaAt(pos.add(new Vec3i(1, 0, 0)),world);
-            case SOUTH -> isLavaAt(pos.add(new Vec3i(0, 0, -1)),world);
-            default -> false;
-        };
+        try {
+            Direction direction = (state.contains(Properties.HORIZONTAL_FACING)) ? state.get(Properties.HORIZONTAL_FACING) : state.get(Properties.FACING);
+            return switch (direction) {
+                case NORTH -> isLavaAt(pos.add(new Vec3i(0, 0, 1)), world);
+                case EAST -> isLavaAt(pos.add(new Vec3i(-1, 0, 0)), world);
+                case WEST -> isLavaAt(pos.add(new Vec3i(1, 0, 0)), world);
+                case SOUTH -> isLavaAt(pos.add(new Vec3i(0, 0, -1)), world);
+                default -> false;
+            };
+        }catch (IllegalArgumentException ex){
+            Logger.getAnonymousLogger().info(String.format("%s: Find the erroneous block at x%s, y%s, z%s",ex.getMessage(),pos.getX(),pos.getY(),pos.getZ()));
+        }
+        return false;
+    }
+
+
+    private static Boolean isLavaNextTo(World world, BlockPos pos, BlockState state){
+        try {
+            Direction direction = (state.contains(Properties.HORIZONTAL_FACING)) ? state.get(Properties.HORIZONTAL_FACING) : state.get(Properties.FACING);
+            return switch (direction) {
+                case NORTH,SOUTH -> isLavaAt(pos.add(new Vec3i(1, 0, 0)), world) || isLavaAt(pos.add(new Vec3i(-1, 0, 0)), world);
+                case EAST,WEST -> isLavaAt(pos.add(new Vec3i(0, 0, 1)), world) || isLavaAt(pos.add(new Vec3i(0, 0, -1)), world);
+                default -> false;
+            };
+        }catch (IllegalArgumentException ex){
+            Logger.getAnonymousLogger().info(String.format("%s: Find the erroneous block at x%s, y%s, z%s",ex.getMessage(),pos.getX(),pos.getY(),pos.getZ()));
+        }
+        return false;
     }
 
     private static Boolean isMagmaBelow(World world,BlockPos pos){
@@ -93,15 +119,35 @@ public abstract class FurnaceMixin implements FurnaceInterface {
     }
 
     private static Boolean isMagmaBehind(World world,BlockPos pos,BlockState state){
-        Direction direction = state.get(Properties.FACING);
-        return switch (direction){
-            case NORTH -> isMagmaAt(pos.add(new Vec3i(0, 0, 1)),world);
-            case EAST -> isMagmaAt(pos.add(new Vec3i(-1, 0, 0)),world);
-            case WEST -> isMagmaAt(pos.add(new Vec3i(1, 0, 0)),world);
-            case SOUTH -> isMagmaAt(pos.add(new Vec3i(0, 0, -1)),world);
-            default -> false;
-        };
+        try {
+            Direction direction = (state.contains(Properties.HORIZONTAL_FACING)) ? state.get(Properties.HORIZONTAL_FACING) : state.get(Properties.FACING);
+            return switch (direction){
+                case NORTH -> isMagmaAt(pos.add(new Vec3i(0, 0, 1)),world);
+                case EAST -> isMagmaAt(pos.add(new Vec3i(-1, 0, 0)),world);
+                case WEST -> isMagmaAt(pos.add(new Vec3i(1, 0, 0)),world);
+                case SOUTH -> isMagmaAt(pos.add(new Vec3i(0, 0, -1)),world);
+                default -> false;
+            };
+        }catch (IllegalArgumentException ex){
+            Logger.getAnonymousLogger().warning(ex.getMessage());
+        }
+        return false;
     }
+
+    private static Boolean isMagmaNextTo(World world, BlockPos pos, BlockState state){
+        try {
+            Direction direction = (state.contains(Properties.HORIZONTAL_FACING)) ? state.get(Properties.HORIZONTAL_FACING) : state.get(Properties.FACING);
+            return switch (direction) {
+                case NORTH,SOUTH -> isMagmaAt(pos.add(new Vec3i(1, 0, 0)), world) || isMagmaAt(pos.add(new Vec3i(-1, 0, 0)), world);
+                case EAST,WEST -> isMagmaAt(pos.add(new Vec3i(0, 0, 1)), world) || isMagmaAt(pos.add(new Vec3i(0, 0, -1)), world);
+                default -> false;
+            };
+        }catch (IllegalArgumentException ex){
+            Logger.getAnonymousLogger().info(String.format("%s: Find the erroneous block at x%s, y%s, z%s",ex.getMessage(),pos.getX(),pos.getY(),pos.getZ()));
+        }
+        return false;
+    }
+
     private static Boolean isLavaAt(BlockPos pos,World world){
         FluidState fluidState = world.getFluidState(pos);
         return fluidState.getFluid() instanceof LavaFluid && fluidState.isStill();
